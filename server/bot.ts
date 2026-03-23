@@ -4,7 +4,10 @@ import {
   Events,
   AttachmentBuilder,
   EmbedBuilder,
-  Message,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
 } from "discord.js";
 import { log } from "./index";
 
@@ -71,9 +74,7 @@ async function fetchLevelInfo(id: string, ts: string) {
   };
 }
 
-async function downloadLevel(
-  downloadUrl: string
-): Promise<Buffer | null> {
+async function downloadLevel(downloadUrl: string): Promise<Buffer | null> {
   try {
     const res = await fetch(downloadUrl);
     if (!res.ok) return null;
@@ -84,7 +85,9 @@ async function downloadLevel(
   }
 }
 
-function buildEmbed(info: NonNullable<Awaited<ReturnType<typeof fetchLevelInfo>>>) {
+type LevelInfo = NonNullable<Awaited<ReturnType<typeof fetchLevelInfo>>>;
+
+function buildEmbed(info: LevelInfo) {
   const embed = new EmbedBuilder()
     .setTitle(info.title)
     .setColor(0x00d4e8)
@@ -110,27 +113,110 @@ function buildEmbed(info: NonNullable<Awaited<ReturnType<typeof fetchLevelInfo>>
     fields.push({ name: "Checkpoints", value: String(info.maxCheckpoint), inline: true });
   }
   if (info.description) {
-    const desc = info.description.length > 200
-      ? info.description.slice(0, 197) + "..."
-      : info.description;
+    const desc =
+      info.description.length > 200
+        ? info.description.slice(0, 197) + "..."
+        : info.description;
     fields.push({ name: "Description", value: desc });
   }
 
-  embed.addFields(fields);
+  if (fields.length > 0) embed.addFields(fields);
   embed.setFooter({ text: `ID: ${info.id} | TS: ${info.ts}` });
 
   return embed;
 }
 
-const HELP_TEXT = `**GRAB VR Level Downloader Bot**
+const commands = [
+  new SlashCommandBuilder()
+    .setName("grab")
+    .setDescription("Fetch level info and download the .level file from GRAB VR")
+    .addStringOption((opt) =>
+      opt
+        .setName("link")
+        .setDescription("The grabvr.quest level link")
+        .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName("grabinfo")
+    .setDescription("Show level info from GRAB VR without downloading")
+    .addStringOption((opt) =>
+      opt
+        .setName("link")
+        .setDescription("The grabvr.quest level link")
+        .setRequired(true)
+    ),
+].map((cmd) => cmd.toJSON());
 
-**Commands:**
-\`!grab <level_link>\` — Fetch level info and download the \`.level\` file
-\`!grabinfo <level_link>\` — Show level info only (no download)
-\`!grabhelp\` — Show this help message
+async function registerCommands(token: string, clientId: string) {
+  const rest = new REST({ version: "10" }).setToken(token);
+  try {
+    await rest.put(Routes.applicationCommands(clientId), { body: commands });
+    log("Slash commands registered globally.", "bot");
+  } catch (err: any) {
+    log(`Failed to register slash commands: ${err.message}`, "bot");
+  }
+}
 
-**Example:**
-\`!grab https://grabvr.quest/levels/viewer/?level=abc123:1234567890\``;
+async function handleLevelCommand(
+  interaction: ChatInputCommandInteraction,
+  isDownload: boolean
+) {
+  const link = interaction.options.getString("link", true);
+
+  const parsed = parseLevelLink(link);
+  if (!parsed) {
+    await interaction.reply({
+      content:
+        "Invalid GRAB link. Expected format:\n`https://grabvr.quest/levels/viewer/?level=id:timestamp`",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const { id, ts } = parsed;
+
+  await interaction.deferReply();
+
+  try {
+    const info = await fetchLevelInfo(id, ts);
+    if (!info) {
+      await interaction.editReply("Level not found on GRAB API.");
+      return;
+    }
+
+    const embed = buildEmbed(info);
+
+    if (!isDownload) {
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    if (!info.downloadUrl) {
+      await interaction.editReply({
+        content: "Level info found, but no downloadable file could be located.",
+        embeds: [embed],
+      });
+      return;
+    }
+
+    const buffer = await downloadLevel(info.downloadUrl);
+    if (!buffer) {
+      await interaction.editReply({
+        content: "Failed to download the level file from GRAB API.",
+        embeds: [embed],
+      });
+      return;
+    }
+
+    const filename = `${id}_${ts}.level`;
+    const attachment = new AttachmentBuilder(buffer, { name: filename });
+
+    await interaction.editReply({ embeds: [embed], files: [attachment] });
+  } catch (err) {
+    console.error("[bot] Error handling interaction:", err);
+    await interaction.editReply("An error occurred while processing this level.");
+  }
+}
 
 export function startBot() {
   const token = process.env.TOKEN;
@@ -139,91 +225,20 @@ export function startBot() {
     return;
   }
 
-  const client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-  });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-  client.once(Events.ClientReady, (c) => {
+  client.once(Events.ClientReady, async (c) => {
     log(`Logged in as ${c.user.tag}`, "bot");
+    await registerCommands(token, c.user.id);
   });
 
-  client.on(Events.MessageCreate, async (message: Message) => {
-    if (message.author.bot) return;
+  client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
-    const content = message.content.trim();
-
-    if (content === "!grabhelp") {
-      await message.reply(HELP_TEXT);
-      return;
-    }
-
-    if (content.startsWith("!grabinfo ") || content.startsWith("!grab ")) {
-      const isDownload = content.startsWith("!grab ");
-      const link = isDownload ? content.slice(6).trim() : content.slice(10).trim();
-
-      const parsed = parseLevelLink(link);
-      if (!parsed) {
-        await message.reply(
-          "Invalid GRAB link. Expected format:\n`https://grabvr.quest/levels/viewer/?level=id:timestamp`"
-        );
-        return;
-      }
-
-      const { id, ts } = parsed;
-
-      const thinking = await message.reply("Fetching level info...");
-
-      try {
-        const info = await fetchLevelInfo(id, ts);
-        if (!info) {
-          await thinking.edit("Level not found on GRAB API.");
-          return;
-        }
-
-        const embed = buildEmbed(info);
-
-        if (!isDownload) {
-          await thinking.edit({ content: "", embeds: [embed] });
-          return;
-        }
-
-        if (!info.downloadUrl) {
-          await thinking.edit({
-            content: "Level info found, but no downloadable file could be located.",
-            embeds: [embed],
-          });
-          return;
-        }
-
-        await thinking.edit("Downloading level file...");
-
-        const buffer = await downloadLevel(info.downloadUrl);
-        if (!buffer) {
-          await thinking.edit({
-            content: "Failed to download the level file from GRAB API.",
-            embeds: [embed],
-          });
-          return;
-        }
-
-        const filename = `${id}_${ts}.level`;
-        const attachment = new AttachmentBuilder(buffer, { name: filename });
-
-        await thinking.edit({
-          content: "",
-          embeds: [embed],
-          files: [attachment],
-        });
-      } catch (err) {
-        console.error("[bot] Error handling command:", err);
-        await thinking.edit("An error occurred while processing this level.");
-      }
-
-      return;
+    if (interaction.commandName === "grab") {
+      await handleLevelCommand(interaction, true);
+    } else if (interaction.commandName === "grabinfo") {
+      await handleLevelCommand(interaction, false);
     }
   });
 
