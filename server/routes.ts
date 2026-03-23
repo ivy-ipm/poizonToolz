@@ -255,5 +255,41 @@ export async function registerRoutes(
     return res.json(deduped);
   });
 
+  // GET /api/sgm/list - List Shared Game Modules from GRAB API
+  app.get("/api/sgm/list", async (_req, res) => {
+    const sources = [
+      `${GRAB_API}/list/sgm`,
+      `${GRAB_API}/list/shared_module`,
+      `${GRAB_API}/list/level/sgm?max_format_version=6`,
+      `${GRAB_API}/list/level/shared_game_module?max_format_version=6`,
+    ];
+
+    const seen = new Set<string>();
+    const allItems: ReturnType<typeof mapListItem>[] = [];
+
+    await Promise.allSettled(
+      sources.map(async (url) => {
+        try {
+          const apiRes = await fetch(url);
+          if (!apiRes.ok) return;
+          const data = (await apiRes.json()) as Record<string, unknown>[];
+          if (!Array.isArray(data)) return;
+          for (const raw of data) {
+            const item = mapListItem(raw);
+            if (!seen.has(item.identifier)) {
+              seen.add(item.identifier);
+              allItems.push(item);
+            }
+          }
+        } catch {
+          // ignore source errors
+        }
+      })
+    );
+
+    allItems.sort((a, b) => b.creationTimestamp - a.creationTimestamp);
+    return res.json(allItems);
+  });
+
   return httpServer;
 }
