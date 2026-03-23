@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Download, Search, Star, CheckCircle, AlertCircle, User, Layers, Trophy, Moon, Sun, ExternalLink, Clock, Trash2 } from "lucide-react";
+import {
+  Download, Search, Star, CheckCircle, AlertCircle, User,
+  Layers, Trophy, ExternalLink, Clock, Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useTheme } from "@/components/theme-provider";
 import { levelLinkSchema, type LevelLink, type LevelInfo } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
 
 interface HistoryEntry {
   id: string;
@@ -22,22 +23,6 @@ interface HistoryEntry {
   creators: string[];
   dataKey: string | null;
   fetchedAt: Date;
-}
-
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
-
-  return (
-    <Button
-      size="icon"
-      variant="ghost"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      data-testid="button-theme-toggle"
-    >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-    </Button>
-  );
 }
 
 function StarRating({ rating, count }: { rating?: number | null; count?: number | null }) {
@@ -77,10 +62,7 @@ function LevelCard({ level, onDownload, isDownloading }: {
                 </Badge>
               )}
             </div>
-            <h2
-              className="text-xl font-semibold text-card-foreground leading-tight"
-              data-testid="text-level-title"
-            >
+            <h2 className="text-xl font-semibold text-card-foreground leading-tight" data-testid="text-level-title">
               {level.title}
             </h2>
             {level.creators.length > 0 && (
@@ -180,20 +162,13 @@ function LevelCardSkeleton() {
   );
 }
 
-function HistoryItem({
-  entry,
-  onRestore,
-  onRemove,
-}: {
+function HistoryItem({ entry, onRestore, onRemove }: {
   entry: HistoryEntry;
   onRestore: (entry: HistoryEntry) => void;
   onRemove: (id: string) => void;
 }) {
   return (
-    <div
-      className="flex items-center gap-3 py-3 group"
-      data-testid={`history-item-${entry.id}`}
-    >
+    <div className="flex items-center gap-3 py-3 group" data-testid={`history-item-${entry.id}`}>
       <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
         <Layers className="w-4 h-4 text-primary" />
       </div>
@@ -205,8 +180,7 @@ function HistoryItem({
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
         <Button
-          size="icon"
-          variant="ghost"
+          size="icon" variant="ghost"
           className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => onRestore(entry)}
           data-testid={`button-restore-${entry.id}`}
@@ -214,8 +188,7 @@ function HistoryItem({
           <ExternalLink className="w-3.5 h-3.5" />
         </Button>
         <Button
-          size="icon"
-          variant="ghost"
+          size="icon" variant="ghost"
           className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
           onClick={() => onRemove(entry.id)}
           data-testid={`button-remove-history-${entry.id}`}
@@ -256,24 +229,13 @@ export default function Home() {
         const exists = prev.find((h) => h.id === data.id && h.ts === data.ts);
         if (exists) return prev;
         return [
-          {
-            id: data.id,
-            ts: data.ts,
-            title: data.title,
-            creators: data.creators,
-            dataKey: data.dataKey,
-            fetchedAt: new Date(),
-          },
+          { id: data.id, ts: data.ts, title: data.title, creators: data.creators, dataKey: data.dataKey, fetchedAt: new Date() },
           ...prev.slice(0, 9),
         ];
       });
     },
     onError: (err: Error) => {
-      toast({
-        title: "Could not fetch level",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Could not fetch level", description: err.message, variant: "destructive" });
     },
   });
 
@@ -309,18 +271,10 @@ export default function Home() {
 
   const handleRestoreHistory = (entry: HistoryEntry) => {
     setLevelInfo({
-      id: entry.id,
-      ts: entry.ts,
-      title: entry.title,
-      creators: entry.creators,
-      dataKey: entry.dataKey,
-      downloadUrl: entry.dataKey ? `placeholder` : null,
+      id: entry.id, ts: entry.ts, title: entry.title, creators: entry.creators,
+      dataKey: entry.dataKey, downloadUrl: entry.dataKey ? "placeholder" : null,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleRemoveHistory = (id: string) => {
-    setHistory((prev) => prev.filter((h) => h.id !== id));
   };
 
   const onSubmit = (data: LevelLink) => {
@@ -329,36 +283,16 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-              <Download className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="font-semibold text-sm tracking-tight text-foreground">
-              GRAB Level Downloader
-            </span>
-          </div>
-          <ThemeToggle />
-        </div>
-      </header>
+    <div className="flex-1 flex flex-col">
+      <div className="border-b border-border px-6 py-4">
+        <h1 className="text-lg font-semibold text-foreground">Level Downloader</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Paste a grabvr.quest link to fetch info and download the{" "}
+          <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">.level</code> file.
+        </p>
+      </div>
 
-      {/* Main content */}
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-10 flex flex-col gap-8">
-        {/* Hero */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Download GRAB Levels
-          </h1>
-          <p className="text-muted-foreground text-base">
-            Paste any grabvr.quest level link to fetch info and download the{" "}
-            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">.level</code> file.
-          </p>
-        </div>
-
-        {/* Input form */}
+      <div className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 flex flex-col gap-8">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
             <FormField
@@ -371,7 +305,7 @@ export default function Home() {
                       <Input
                         {...field}
                         placeholder="https://grabvr.quest/levels/viewer/?level=id:timestamp"
-                        className="font-mono text-sm bg-card border-input"
+                        className="font-mono text-sm"
                         data-testid="input-level-link"
                       />
                       <Button
@@ -394,12 +328,7 @@ export default function Home() {
               <button
                 type="button"
                 className="font-mono text-primary underline-offset-2 hover:underline"
-                onClick={() => {
-                  form.setValue(
-                    "link",
-                    "https://grabvr.quest/levels/viewer/?level=2bxbvcht0nsillans5exy:1771389229"
-                  );
-                }}
+                onClick={() => form.setValue("link", "https://grabvr.quest/levels/viewer/?level=2bxbvcht0nsillans5exy:1771389229")}
                 data-testid="button-example-link"
               >
                 grabvr.quest/levels/viewer/?level=2bxbvcht0nsillans5exy:1771389229
@@ -408,15 +337,10 @@ export default function Home() {
           </form>
         </Form>
 
-        {/* Result */}
         {fetchMutation.isPending && <LevelCardSkeleton />}
 
         {levelInfo && !fetchMutation.isPending && (
-          <LevelCard
-            level={levelInfo}
-            onDownload={handleDownload}
-            isDownloading={isDownloading}
-          />
+          <LevelCard level={levelInfo} onDownload={handleDownload} isDownloading={isDownloading} />
         )}
 
         {fetchMutation.isError && !fetchMutation.isPending && (
@@ -429,7 +353,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* History */}
         {history.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -445,7 +368,7 @@ export default function Home() {
                     key={`${entry.id}-${entry.ts}`}
                     entry={entry}
                     onRestore={handleRestoreHistory}
-                    onRemove={handleRemoveHistory}
+                    onRemove={(id) => setHistory((prev) => prev.filter((h) => h.id !== id))}
                   />
                 ))}
               </CardContent>
@@ -453,36 +376,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state when no level loaded yet */}
         {!levelInfo && !fetchMutation.isPending && !fetchMutation.isError && (
           <div className="text-center py-12 text-muted-foreground" data-testid="status-empty">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-              <Layers className="w-8 h-8 text-muted-foreground" />
+              <Download className="w-8 h-8 text-muted-foreground" />
             </div>
             <p className="text-sm">Paste a GRAB level link above to get started.</p>
           </div>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-5">
-        <div className="max-w-3xl mx-auto px-4 flex items-center justify-between gap-4">
-          <p className="text-xs text-muted-foreground">
-            Uses the{" "}
-            <a
-              href="https://api.slin.dev/grab/v1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-              data-testid="link-api-docs"
-            >
-              slin.dev GRAB API
-            </a>{" "}
-            — unofficial.
-          </p>
-          <p className="text-xs text-muted-foreground">Not affiliated with GRAB VR.</p>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

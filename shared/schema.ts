@@ -25,3 +25,19 @@ export const levelInfoSchema = z.object({
 });
 
 export type LevelInfo = z.infer<typeof levelInfoSchema>;
+
+export interface LevelListItem {
+  identifier: string;
+  title: string;
+  complexity?: number;
+  creators: string[];
+  dataKey: string;
+  pageTimestamp: string;
+  updateTimestamp: number;
+  creationTimestamp: number;
+  verified?: boolean;
+  averageRating?: number;
+  ratingCount?: number;
+}
+
+export type LevelListType = "top_today" | "top_week" | "top_month" | "new";

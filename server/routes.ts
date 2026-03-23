@@ -38,6 +38,25 @@ async function probeVersions(id: string, ts: string): Promise<string | null> {
   return null;
 }
 
+function mapListItem(raw: Record<string, unknown>) {
+  const [id, ts] = ((raw.identifier as string) || ":").split(":");
+  return {
+    identifier: raw.identifier as string,
+    id,
+    ts,
+    title: (raw.title as string) || `${id}_${ts}`,
+    complexity: (raw.complexity as number) ?? null,
+    creators: (raw.creators as string[]) || [],
+    dataKey: (raw.data_key as string) || null,
+    pageTimestamp: (raw.page_timestamp as string) || "",
+    updateTimestamp: (raw.update_timestamp as number) || 0,
+    creationTimestamp: (raw.creation_timestamp as number) || 0,
+    verified: (raw.verified as boolean) || false,
+    averageRating: (raw.average_rating as number) ?? null,
+    ratingCount: (raw.rating_count as number) ?? null,
+  };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -144,6 +163,57 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Download error:", err);
       return res.status(502).json({ message: "Failed to download level file" });
+    }
+  });
+
+  // GET /api/levels/list?type=top_today&pageTimestamp=
+  app.get("/api/levels/list", async (req, res) => {
+    const type = (req.query.type as string) || "top_today";
+    const validTypes = ["top_today", "top_week", "top_month", "new"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ message: "Invalid list type" });
+    }
+
+    const pageTimestamp = req.query.pageTimestamp as string | undefined;
+    let url = `${GRAB_API}/list/level/${type}?max_format_version=6`;
+    if (pageTimestamp) url += `&page_timestamp=${encodeURIComponent(pageTimestamp)}`;
+
+    try {
+      const apiRes = await fetch(url);
+      if (!apiRes.ok) {
+        return res.status(502).json({ message: "Failed to fetch level list" });
+      }
+      const data = (await apiRes.json()) as Record<string, unknown>[];
+      return res.json(data.map(mapListItem));
+    } catch (err) {
+      console.error("List error:", err);
+      return res.status(502).json({ message: "Failed to contact GRAB API" });
+    }
+  });
+
+  // GET /api/levels/user?username=<name>&pageTimestamp=
+  app.get("/api/levels/user", async (req, res) => {
+    const username = req.query.username as string;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ message: "Missing username parameter" });
+    }
+
+    const pageTimestamp = req.query.pageTimestamp as string | undefined;
+    let url = `${GRAB_API}/list/level/user/${encodeURIComponent(username.trim())}?max_format_version=6`;
+    if (pageTimestamp) url += `&page_timestamp=${encodeURIComponent(pageTimestamp)}`;
+
+    try {
+      const apiRes = await fetch(url);
+      if (!apiRes.ok) {
+        return res.status(apiRes.status === 404 ? 404 : 502).json({
+          message: apiRes.status === 404 ? "Player not found" : "Failed to fetch player levels",
+        });
+      }
+      const data = (await apiRes.json()) as Record<string, unknown>[];
+      return res.json(data.map(mapListItem));
+    } catch (err) {
+      console.error("User levels error:", err);
+      return res.status(502).json({ message: "Failed to contact GRAB API" });
     }
   });
 
