@@ -191,30 +191,68 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/levels/user?username=<name>&pageTimestamp=
+  // GET /api/levels/user?username=<name>
+  // Searches across multiple list sources and filters by creator name.
+  // The GRAB API's own user endpoint doesn't reliably filter by display name,
+  // so we aggregate from multiple sources and match against the creators array.
   app.get("/api/levels/user", async (req, res) => {
-    const username = req.query.username as string;
-    if (!username || !username.trim()) {
+    const username = (req.query.username as string)?.trim();
+    if (!username) {
       return res.status(400).json({ message: "Missing username parameter" });
     }
 
-    const pageTimestamp = req.query.pageTimestamp as string | undefined;
-    let url = `${GRAB_API}/list/level/user/${encodeURIComponent(username.trim())}?max_format_version=6`;
-    if (pageTimestamp) url += `&page_timestamp=${encodeURIComponent(pageTimestamp)}`;
+    const nameLower = username.toLowerCase();
 
-    try {
-      const apiRes = await fetch(url);
-      if (!apiRes.ok) {
-        return res.status(apiRes.status === 404 ? 404 : 502).json({
-          message: apiRes.status === 404 ? "Player not found" : "Failed to fetch player levels",
-        });
-      }
-      const data = (await apiRes.json()) as Record<string, unknown>[];
-      return res.json(data.map(mapListItem));
-    } catch (err) {
-      console.error("User levels error:", err);
-      return res.status(502).json({ message: "Failed to contact GRAB API" });
+    // Fetch from several list types to get a broad pool of levels
+    const listTypes = ["new", "top_week", "top_month", "top_today"];
+    const seen = new Set<string>();
+    const allItems: ReturnType<typeof mapListItem>[] = [];
+
+    await Promise.allSettled(
+      listTypes.map(async (type) => {
+        // Fetch up to 3 pages per list type
+        let pageTimestamp: string | undefined;
+        for (let page = 0; page < 3; page++) {
+          let url = `${GRAB_API}/list/level/${type}?max_format_version=6`;
+          if (pageTimestamp) url += `&page_timestamp=${encodeURIComponent(pageTimestamp)}`;
+          try {
+            const apiRes = await fetch(url);
+            if (!apiRes.ok) break;
+            const data = (await apiRes.json()) as Record<string, unknown>[];
+            if (!data.length) break;
+            for (const raw of data) {
+              const item = mapListItem(raw);
+              if (!seen.has(item.identifier)) {
+                seen.add(item.identifier);
+                // Only include items where creators contains the searched username
+                const creatorsLower = item.creators.map((c: string) => c.toLowerCase());
+                if (creatorsLower.some((c: string) => c === nameLower)) {
+                  allItems.push(item);
+                }
+              }
+            }
+            pageTimestamp = (data[data.length - 1] as Record<string, unknown>)?.page_timestamp as string;
+            if (!pageTimestamp) break;
+          } catch {
+            break;
+          }
+        }
+      })
+    );
+
+    if (allItems.length === 0) {
+      return res.status(404).json({
+        message: `No levels found for "${username}". The player may not exist in GRAB VR, or they have no published levels indexed by the API.`,
+      });
     }
+
+    // Sort oldest first as requested
+    allItems.sort((a, b) => a.creationTimestamp - b.creationTimestamp);
+
+    // Deduplicate after sort (shouldn't be needed but just in case)
+    const deduped = Array.from(new Map(allItems.map((x) => [x.identifier, x])).values());
+
+    return res.json(deduped);
   });
 
   return httpServer;

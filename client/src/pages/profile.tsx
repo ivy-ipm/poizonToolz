@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Download, Layers, Star, CheckCircle, User, ExternalLink, AlertCircle } from "lucide-react";
+import {
+  Search, Download, Layers, Star, CheckCircle, User,
+  ExternalLink, AlertCircle, Clock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -10,14 +13,16 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import type { LevelListItem } from "@shared/schema";
 
-function LevelCard({ item, onDownload, downloading }: {
+function LevelRow({ item, onDownload, downloading }: {
   item: LevelListItem;
   onDownload: (item: LevelListItem) => void;
   downloading: boolean;
 }) {
   const grabLink = `https://grabvr.quest/levels/viewer/?level=${item.identifier}`;
   const date = item.creationTimestamp
-    ? new Date(item.creationTimestamp).toLocaleDateString()
+    ? new Date(item.creationTimestamp).toLocaleDateString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+      })
     : null;
 
   return (
@@ -31,7 +36,10 @@ function LevelCard({ item, onDownload, downloading }: {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-medium text-foreground truncate" data-testid={`text-profile-title-${item.identifier}`}>
+          <span
+            className="text-sm font-medium text-foreground truncate"
+            data-testid={`text-profile-title-${item.identifier}`}
+          >
             {item.title}
           </span>
           {item.verified && (
@@ -51,13 +59,27 @@ function LevelCard({ item, onDownload, downloading }: {
               {item.ratingCount && <span>({item.ratingCount})</span>}
             </div>
           )}
-          {date && <span className="text-xs text-muted-foreground">{date}</span>}
+          {date && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              <span>{date}</span>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
-        <a href={grabLink} target="_blank" rel="noopener noreferrer" data-testid={`link-profile-view-${item.identifier}`}>
-          <Button size="icon" variant="ghost" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+        <a
+          href={grabLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={`link-profile-view-${item.identifier}`}
+        >
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
             <ExternalLink className="w-3.5 h-3.5" />
           </Button>
         </a>
@@ -77,13 +99,13 @@ function LevelCard({ item, onDownload, downloading }: {
   );
 }
 
-function LevelCardSkeleton() {
+function LevelRowSkeleton() {
   return (
     <div className="flex items-center gap-3 py-3.5 border-b border-border last:border-0">
       <Skeleton className="w-8 h-8 rounded-md flex-shrink-0" />
       <div className="flex-1 space-y-1.5">
         <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-28" />
       </div>
       <Skeleton className="h-8 w-24 flex-shrink-0" />
     </div>
@@ -107,6 +129,7 @@ export default function Profile() {
       return res.json();
     },
     enabled: !!username,
+    retry: false,
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -120,7 +143,10 @@ export default function Profile() {
     const [id, ts] = item.identifier.split(":");
     setDownloading(item.identifier);
     try {
-      const params = new URLSearchParams({ id, ts, ...(item.dataKey ? { dataKey: item.dataKey } : {}) });
+      const params = new URLSearchParams({
+        id, ts,
+        ...(item.dataKey ? { dataKey: item.dataKey } : {}),
+      });
       const res = await fetch(`/api/level-download?${params.toString()}`);
       if (!res.ok) {
         const err = await res.json();
@@ -147,7 +173,7 @@ export default function Profile() {
       <div className="border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold text-foreground">Player Lookup</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Find and download all levels uploaded by a GRAB VR player.
+          Find levels published by a GRAB VR player, sorted oldest first.
         </p>
       </div>
 
@@ -156,15 +182,24 @@ export default function Profile() {
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Enter GRAB VR username..."
+            placeholder="Enter exact GRAB VR username..."
             className="flex-1"
             data-testid="input-username"
           />
-          <Button type="submit" disabled={isLoading} className="flex-shrink-0 gap-2" data-testid="button-search-player">
+          <Button
+            type="submit"
+            disabled={isLoading || !inputValue.trim()}
+            className="flex-shrink-0 gap-2"
+            data-testid="button-search-player"
+          >
             <Search className="w-4 h-4" />
             {isLoading ? "Searching..." : "Search"}
           </Button>
         </form>
+
+        <p className="text-xs text-muted-foreground -mt-4">
+          Username must match exactly as shown in-game. Results come from indexed levels across top and recent lists.
+        </p>
 
         {!username && (
           <div className="text-center py-16 text-muted-foreground" data-testid="status-profile-empty">
@@ -177,18 +212,23 @@ export default function Profile() {
 
         {isError && (
           <div
-            className="flex items-center gap-3 p-4 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm"
+            className="flex items-start gap-3 p-4 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm"
             data-testid="status-profile-error"
           >
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{(error as Error)?.message || "Player not found."}</span>
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Player not found</p>
+              <p className="text-xs mt-0.5 opacity-80">
+                {(error as Error)?.message}
+              </p>
+            </div>
           </div>
         )}
 
         {isLoading && (
           <Card className="border-card-border bg-card">
-            <CardContent className="py-0">
-              {[0, 1, 2, 3].map((i) => <LevelCardSkeleton key={i} />)}
+            <CardContent className="py-0 px-5">
+              {[0, 1, 2, 3].map((i) => <LevelRowSkeleton key={i} />)}
             </CardContent>
           </Card>
         )}
@@ -201,9 +241,11 @@ export default function Profile() {
                   <User className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground" data-testid="text-profile-username">{username}</p>
+                  <p className="text-sm font-semibold text-foreground" data-testid="text-profile-username">
+                    {username}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    {data.length === 0 ? "No public levels" : `${data.length} level${data.length !== 1 ? "s" : ""}`}
+                    {data.length} level{data.length !== 1 ? "s" : ""} found · sorted oldest first
                   </p>
                 </div>
               </div>
@@ -212,11 +254,11 @@ export default function Profile() {
             <CardContent className="py-0 px-5">
               {data.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground" data-testid="status-no-levels">
-                  This player has no public levels.
+                  No public levels found for this player.
                 </div>
               ) : (
                 data.map((item) => (
-                  <LevelCard
+                  <LevelRow
                     key={item.identifier}
                     item={item}
                     onDownload={handleDownload}
