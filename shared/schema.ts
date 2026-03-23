@@ -1,18 +1,27 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+export const levelLinkSchema = z.object({
+  link: z.string().url("Please enter a valid URL").refine(
+    (v) => v.includes("grabvr.quest"),
+    "Link must be from grabvr.quest"
+  ),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export type LevelLink = z.infer<typeof levelLinkSchema>;
+
+export const levelInfoSchema = z.object({
+  id: z.string(),
+  ts: z.string(),
+  title: z.string(),
+  creators: z.array(z.string()),
+  dataKey: z.string().nullable(),
+  downloadUrl: z.string().nullable(),
+  description: z.string().optional(),
+  complexity: z.number().optional(),
+  maxCheckpoint: z.number().optional(),
+  verified: z.boolean().optional(),
+  averageRating: z.number().optional(),
+  ratingCount: z.number().optional(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type LevelInfo = z.infer<typeof levelInfoSchema>;
