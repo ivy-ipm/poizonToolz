@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Download, LayoutGrid, User, Sun, Moon, Menu, X, Zap } from "lucide-react";
+import { Download, LayoutGrid, User, Sun, Moon, Menu, X, Zap, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
 import { useState } from "react";
@@ -9,6 +9,7 @@ const navItems = [
   { href: "/", label: "Downloader", icon: Download, description: "Download .level files" },
   { href: "/browse", label: "Browse", icon: LayoutGrid, description: "Top & new levels" },
   { href: "/profile", label: "Player Lookup", icon: User, description: "Search by username" },
+  { href: "/pixel-art", label: "Pixel Art", icon: Palette, description: "Image to .level converter" },
 ];
 
 function ThemeToggle() {

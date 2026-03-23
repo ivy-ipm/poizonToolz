@@ -8,6 +8,7 @@ import { Layout } from "@/components/layout";
 import Home from "@/pages/home";
 import Browse from "@/pages/browse";
 import Profile from "@/pages/profile";
+import PixelArt from "@/pages/pixel-art";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/browse" component={Browse} />
         <Route path="/profile" component={Profile} />
+        <Route path="/pixel-art" component={PixelArt} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
