@@ -247,7 +247,7 @@ export function newBlock(overrides: Partial<GrabBlock> = {}): GrabBlock {
     variant: 8,
     position: [0, 0.5, 0],
     scale: [1, 1, 1],
-    rotation: [0, 0, 0, -1],
+    rotation: [0, 0, 0, 1],
     color: [100, 180, 255],
     ...overrides,
   };
@@ -260,6 +260,27 @@ export function newLevel(): GrabLevel {
     creator: "poizonTools",
     blocks: [],
   };
+}
+
+// Encode the start checkpoint at a given Z position
+// Format verified against real GRAB level binary: field6 → field1 → {pos, rot, flag}
+function encodeStartCheckpoint(z: number): number[] {
+  const inner: number[] = [
+    ...encodeLen(1, encodeFloatField(3, z)),        // position z
+    ...encodeLen(2, encodeFloatField(4, 1.0)),       // rotation w
+    ...encodeFloatField(3, 1.0),                     // required flag
+  ];
+  return encodeLen(6, encodeLen(1, inner));
+}
+
+// Encode the finish ring at a given Z position
+// Format verified against real GRAB level binary: field6 → field2 → {pos, flag}
+function encodeFinishRing(z: number): number[] {
+  const inner: number[] = [
+    ...encodeLen(1, encodeFloatField(3, z)),         // position z
+    ...encodeFloatField(2, 1.0),                     // required flag
+  ];
+  return encodeLen(6, encodeLen(2, inner));
 }
 
 export function levelToJson(level: GrabLevel): string {
